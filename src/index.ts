@@ -8,6 +8,17 @@ import {
 import { z } from "zod";
 import { ForgejoClient, ForgejoError } from "./forgejo.js";
 
+const CreatePrCommentInput = z.object({
+  owner: z.string().min(1).describe("Repository owner (user or org)"),
+  repo: z.string().min(1).describe("Repository name"),
+  pr_number: z
+    .number()
+    .int()
+    .positive()
+    .describe("Pull request number (same as the issue index)"),
+  body: z.string().min(1).describe("Comment body (markdown)"),
+});
+
 const CreatePullRequestInput = z.object({
   owner: z.string().min(1).describe("Repository owner (user or org)"),
   repo: z.string().min(1).describe("Repository name"),
@@ -93,6 +104,24 @@ async function main() {
           required: ["owner", "repo", "title", "head", "base"],
         },
       },
+      {
+        name: "create_pr_comment",
+        description:
+          "Add a comment to a pull request's conversation thread. Uses the issue-comment endpoint since Forgejo PRs are issues.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            owner: { type: "string", description: "Repository owner" },
+            repo: { type: "string", description: "Repository name" },
+            pr_number: {
+              type: "integer",
+              description: "Pull request number",
+            },
+            body: { type: "string", description: "Comment body (markdown)" },
+          },
+          required: ["owner", "repo", "pr_number", "body"],
+        },
+      },
     ],
   }));
 
@@ -109,6 +138,26 @@ async function main() {
                 text: `Created PR #${pr.number}: ${pr.html_url}`,
               },
               { type: "text", text: JSON.stringify(pr, null, 2) },
+            ],
+          };
+        }
+        case "create_pr_comment": {
+          const { owner, repo, pr_number, body } = CreatePrCommentInput.parse(
+            req.params.arguments,
+          );
+          const comment = await client.createIssueComment({
+            owner,
+            repo,
+            index: pr_number,
+            body,
+          });
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Posted comment on PR #${pr_number}: ${comment.html_url}`,
+              },
+              { type: "text", text: JSON.stringify(comment, null, 2) },
             ],
           };
         }

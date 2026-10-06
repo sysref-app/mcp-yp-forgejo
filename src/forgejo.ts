@@ -72,6 +72,20 @@ export class ForgejoClient {
       payload,
     );
   }
+
+  createIssueComment(params: {
+    owner: string;
+    repo: string;
+    index: number;
+    body: string;
+  }) {
+    const { owner, repo, index, body } = params;
+    return this.request<IssueComment>(
+      "POST",
+      `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues/${index}/comments`,
+      { body },
+    );
+  }
 }
 
 function safeJson(text: string): unknown {
@@ -91,4 +105,12 @@ export interface PullRequest {
   state: string;
   head: { ref: string; sha: string };
   base: { ref: string; sha: string };
+}
+
+export interface IssueComment {
+  id: number;
+  html_url: string;
+  body: string;
+  user: { login: string };
+  created_at: string;
 }

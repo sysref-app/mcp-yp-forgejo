@@ -5,6 +5,7 @@ Model Context Protocol server for [Forgejo](https://forgejo.org/) (also works wi
 ## Tools
 
 - `create_pull_request` — open a PR against a repository.
+- `create_pr_comment` — add a comment to a PR's conversation thread.
 
 ## Configuration
 
