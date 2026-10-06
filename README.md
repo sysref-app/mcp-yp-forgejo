@@ -38,7 +38,7 @@ FORGEJO_URL=https://codeberg.org FORGEJO_TOKEN=xxx bun run dev
       "command": "node",
       "args": ["/absolute/path/to/forgejo-mcp/dist/index.js"],
       "env": {
-        "FORGEJO_URL": "https://codeberg.org",
+        "FORGEJO_URL": "https://code.vilor.com",
         "FORGEJO_TOKEN": "xxx"
       }
     }
