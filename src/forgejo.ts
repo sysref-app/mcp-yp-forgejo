@@ -28,21 +28,37 @@ export class ForgejoClient {
     path: string,
     body?: unknown,
   ): Promise<T> {
+    const text = await this.send(method, path, body, "application/json");
+    return (text ? safeJson(text) : null) as T;
+  }
+
+  /**
+   * Sends an authenticated API request and returns the raw response body.
+   *
+   * Shared by JSON and plain-text endpoints, so both get the same auth
+   * header and throw ForgejoError on a non-2xx status.
+   */
+  private async send(
+    method: string,
+    path: string,
+    body: unknown,
+    accept: string,
+  ): Promise<string> {
     const url = `${this.baseUrl}/api/v1${path}`;
     const res = await fetch(url, {
       method,
       headers: {
         Authorization: `token ${this.token}`,
         "Content-Type": "application/json",
-        Accept: "application/json",
+        Accept: accept,
       },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
 
     const text = await res.text();
-    const parsed = text ? safeJson(text) : null;
 
     if (!res.ok) {
+      const parsed = text ? safeJson(text) : null;
       throw new ForgejoError(
         `Forgejo ${method} ${path} failed: ${res.status} ${res.statusText}`,
         res.status,
@@ -50,7 +66,7 @@ export class ForgejoClient {
       );
     }
 
-    return parsed as T;
+    return text;
   }
 
   createPullRequest(params: {
@@ -73,6 +89,24 @@ export class ForgejoClient {
     );
   }
 
+  getPullRequest(params: { owner: string; repo: string; index: number }) {
+    const { owner, repo, index } = params;
+    return this.request<PullRequest>(
+      "GET",
+      `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls/${index}`,
+    );
+  }
+
+  getPullRequestDiff(params: { owner: string; repo: string; index: number }) {
+    const { owner, repo, index } = params;
+    return this.send(
+      "GET",
+      `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls/${index}.diff`,
+      undefined,
+      "text/plain",
+    );
+  }
+
   createIssueComment(params: {
     owner: string;
     repo: string;
@@ -84,6 +118,14 @@ export class ForgejoClient {
       "POST",
       `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues/${index}/comments`,
       { body },
+    );
+  }
+
+  listIssueComments(params: { owner: string; repo: string; index: number }) {
+    const { owner, repo, index } = params;
+    return this.request<IssueComment[]>(
+      "GET",
+      `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues/${index}/comments`,
     );
   }
 }
