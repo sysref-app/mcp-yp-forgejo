@@ -1,0 +1,36 @@
+{
+  "name": "forgejo-mcp",
+  "displayName": "Forgejo MCP",
+  "version": "0.1.0",
+  "description": "Model Context Protocol server for Forgejo (and Gitea): create PRs, comment, fetch metadata, list comments, and get diffs.",
+  "author": {
+    "name": "sysref-app",
+    "email": "ys.pan@vilor.com"
+  },
+  "keywords": [
+    "forgejo",
+    "gitea",
+    "mcp",
+    "pull-request",
+    "git"
+  ],
+  "variables": {
+    "type": "object",
+    "properties": {
+      "FORGEJO_URL": {
+        "type": "string",
+        "title": "Forgejo URL",
+        "description": "Base URL of the Forgejo or Gitea instance (e.g. https://codeberg.org)"
+      },
+      "FORGEJO_TOKEN": {
+        "type": "string",
+        "title": "Forgejo token",
+        "description": "Personal access token with write:repository (or equivalent) scope"
+      }
+    },
+    "required": [
+      "FORGEJO_URL",
+      "FORGEJO_TOKEN"
+    ]
+  }
+}

@@ -4,9 +4,16 @@
   "description": "Model Context Protocol server for Forgejo",
   "type": "module",
   "bin": {
-    "forgejo-mcp": "./dist/index.js"
+    "forgejo-mcp": "./bin/forgejo-mcp.mjs"
   },
   "main": "./dist/index.js",
+  "files": [
+    "bin",
+    "src",
+    "dist",
+    "mcp.json",
+    ".cursor-plugin"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "bun run src/index.ts",
@@ -15,6 +22,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.4",
+    "tsx": "^4.19.2",
     "zod": "^3.23.8"
   },
   "devDependencies": {

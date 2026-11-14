@@ -1,0 +1,18 @@
+{
+  "name": "yp-forgejo-mcp",
+  "owner": {
+    "name": "sysref-app",
+    "email": "ys.pan@vilor.com"
+  },
+  "metadata": {
+    "description": "Forgejo / Gitea MCP tools for pull requests and comments",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "forgejo-mcp",
+      "source": ".",
+      "description": "Create and inspect Forgejo pull requests, comments, and diffs via MCP"
+    }
+  ]
+}
