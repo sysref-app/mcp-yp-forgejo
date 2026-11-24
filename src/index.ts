@@ -7,7 +7,18 @@ import {
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-import { ForgejoClient, ForgejoError } from "./forgejo.js";
+import {
+  ForgejoClient,
+  ForgejoError,
+  type Attachment,
+} from "./forgejo.js";
+import {
+  MediaListInput,
+  appendMediaMarkdown,
+  mediaInputSchema,
+  resolveMediaItems,
+  type ResolvedMedia,
+} from "./media.js";
 
 const CreatePrCommentInput = z.object({
   owner: z.string().min(1).describe("Repository owner (user or org)"),
@@ -18,6 +29,7 @@ const CreatePrCommentInput = z.object({
     .positive()
     .describe("Pull request number (same as the issue index)"),
   body: z.string().min(1).describe("Comment body (markdown)"),
+  media: MediaListInput,
 });
 
 const CreatePullRequestInput = z.object({
@@ -34,6 +46,7 @@ const CreatePullRequestInput = z.object({
   assignees: z.array(z.string()).optional().describe("Usernames to assign"),
   labels: z.array(z.number().int()).optional().describe("Label IDs to apply"),
   milestone: z.number().int().optional().describe("Milestone ID"),
+  media: MediaListInput,
 });
 
 /** Arguments that identify a pull request, shared by the read-only PR tools. */
@@ -83,6 +96,17 @@ function formatError(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+async function uploadAll(
+  items: ResolvedMedia[],
+  upload: (item: ResolvedMedia) => Promise<Attachment>,
+): Promise<Attachment[]> {
+  const attachments: Attachment[] = [];
+  for (const item of items) {
+    attachments.push(await upload(item));
+  }
+  return attachments;
+}
+
 async function main() {
   const config = loadConfig();
   const client = new ForgejoClient(config);
@@ -97,7 +121,7 @@ async function main() {
       {
         name: "create_pull_request",
         description:
-          "Create a pull request in a Forgejo repository. Returns the created PR including its number and html_url.",
+          "Create a pull request in a Forgejo repository. Optional media uploads are attached to the PR and embedded as markdown image links in the description. Returns the created PR including its number and html_url.",
         inputSchema: {
           type: "object",
           properties: {
@@ -123,6 +147,7 @@ async function main() {
               description: "Label IDs to apply",
             },
             milestone: { type: "integer", description: "Milestone ID" },
+            media: mediaInputSchema,
           },
           required: ["owner", "repo", "title", "head", "base"],
         },
@@ -130,7 +155,7 @@ async function main() {
       {
         name: "create_pr_comment",
         description:
-          "Add a comment to a pull request's conversation thread. Uses the issue-comment endpoint since Forgejo PRs are issues.",
+          "Add a comment to a pull request's conversation thread. Optional media uploads are attached to the comment and embedded as markdown image links. Uses the issue-comment endpoint since Forgejo PRs are issues.",
         inputSchema: {
           type: "object",
           properties: {
@@ -141,6 +166,7 @@ async function main() {
               description: "Pull request number",
             },
             body: { type: "string", description: "Comment body (markdown)" },
+            media: mediaInputSchema,
           },
           required: ["owner", "repo", "pr_number", "body"],
         },
@@ -171,7 +197,39 @@ async function main() {
       switch (req.params.name) {
         case "create_pull_request": {
           const args = CreatePullRequestInput.parse(req.params.arguments);
-          const pr = await client.createPullRequest(args);
+          const { media, ...prArgs } = args;
+          let pr = await client.createPullRequest(prArgs);
+
+          if (media?.length) {
+            const items = await resolveMediaItems(media);
+            const attachments = await uploadAll(items, (item) =>
+              client.uploadIssueAttachment({
+                owner: args.owner,
+                repo: args.repo,
+                index: pr.number,
+                name: item.name,
+                data: item.data,
+                contentType: item.contentType,
+              }),
+            );
+            const body = appendMediaMarkdown(args.body, attachments);
+            pr = await client.editPullRequest({
+              owner: args.owner,
+              repo: args.repo,
+              index: pr.number,
+              body,
+            });
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `Created PR #${pr.number} with ${attachments.length} media attachment(s): ${pr.html_url}`,
+                },
+                { type: "text", text: JSON.stringify({ pr, attachments }, null, 2) },
+              ],
+            };
+          }
+
           return {
             content: [
               {
@@ -183,15 +241,48 @@ async function main() {
           };
         }
         case "create_pr_comment": {
-          const { owner, repo, pr_number, body } = CreatePrCommentInput.parse(
-            req.params.arguments,
-          );
-          const comment = await client.createIssueComment({
+          const { owner, repo, pr_number, body, media } =
+            CreatePrCommentInput.parse(req.params.arguments);
+          let comment = await client.createIssueComment({
             owner,
             repo,
             index: pr_number,
             body,
           });
+
+          if (media?.length) {
+            const items = await resolveMediaItems(media);
+            const attachments = await uploadAll(items, (item) =>
+              client.uploadCommentAttachment({
+                owner,
+                repo,
+                commentId: comment.id,
+                name: item.name,
+                data: item.data,
+                contentType: item.contentType,
+              }),
+            );
+            const updatedBody = appendMediaMarkdown(body, attachments);
+            comment = await client.editIssueComment({
+              owner,
+              repo,
+              commentId: comment.id,
+              body: updatedBody,
+            });
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `Posted comment on PR #${pr_number} with ${attachments.length} media attachment(s): ${comment.html_url}`,
+                },
+                {
+                  type: "text",
+                  text: JSON.stringify({ comment, attachments }, null, 2),
+                },
+              ],
+            };
+          }
+
           return {
             content: [
               {

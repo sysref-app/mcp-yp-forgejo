@@ -5,14 +5,14 @@
     "email": "ys.pan@vilor.com"
   },
   "metadata": {
-    "description": "Forgejo / Gitea MCP tools for pull requests and comments",
+    "description": "Forgejo / Gitea MCP tools for pull requests, comments, and media uploads",
     "version": "0.1.0"
   },
   "plugins": [
     {
       "name": "forgejo-mcp",
       "source": ".",
-      "description": "Create and inspect Forgejo pull requests, comments, and diffs via MCP"
+      "description": "Create and inspect Forgejo pull requests, comments (with media uploads), and diffs via MCP"
     }
   ]
 }

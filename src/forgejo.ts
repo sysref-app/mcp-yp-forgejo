@@ -55,6 +55,31 @@ export class ForgejoClient {
       body: body === undefined ? undefined : JSON.stringify(body),
     });
 
+    return this.readResponse(method, path, res);
+  }
+
+  /**
+   * Multipart upload. Do not set Content-Type — fetch adds the boundary.
+   */
+  private async sendMultipart(path: string, form: FormData): Promise<string> {
+    const url = `${this.baseUrl}/api/v1${path}`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `token ${this.token}`,
+        Accept: "application/json",
+      },
+      body: form,
+    });
+
+    return this.readResponse("POST", path, res);
+  }
+
+  private async readResponse(
+    method: string,
+    path: string,
+    res: Response,
+  ): Promise<string> {
     const text = await res.text();
 
     if (!res.ok) {
@@ -67,6 +92,27 @@ export class ForgejoClient {
     }
 
     return text;
+  }
+
+  private uploadAttachment(
+    path: string,
+    name: string,
+    data: Uint8Array,
+    contentType: string,
+  ) {
+    const form = new FormData();
+    // Copy into a fresh ArrayBuffer-backed Uint8Array so Blob accepts the view
+    // under TypeScript's strict ArrayBufferLike typing.
+    const bytes = new Uint8Array(data);
+    form.append(
+      "attachment",
+      new Blob([bytes], { type: contentType }),
+      name,
+    );
+    const qs = `?name=${encodeURIComponent(name)}`;
+    return this.sendMultipart(`${path}${qs}`, form).then(
+      (text) => safeJson(text) as Attachment,
+    );
   }
 
   createPullRequest(params: {
@@ -107,6 +153,20 @@ export class ForgejoClient {
     );
   }
 
+  editPullRequest(params: {
+    owner: string;
+    repo: string;
+    index: number;
+    body: string;
+  }) {
+    const { owner, repo, index, body } = params;
+    return this.request<PullRequest>(
+      "PATCH",
+      `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls/${index}`,
+      { body },
+    );
+  }
+
   createIssueComment(params: {
     owner: string;
     repo: string;
@@ -121,11 +181,61 @@ export class ForgejoClient {
     );
   }
 
+  editIssueComment(params: {
+    owner: string;
+    repo: string;
+    commentId: number;
+    body: string;
+  }) {
+    const { owner, repo, commentId, body } = params;
+    return this.request<IssueComment>(
+      "PATCH",
+      `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues/comments/${commentId}`,
+      { body },
+    );
+  }
+
   listIssueComments(params: { owner: string; repo: string; index: number }) {
     const { owner, repo, index } = params;
     return this.request<IssueComment[]>(
       "GET",
       `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues/${index}/comments`,
+    );
+  }
+
+  /** Attach a file to an issue/PR (used for PR description media). */
+  uploadIssueAttachment(params: {
+    owner: string;
+    repo: string;
+    index: number;
+    name: string;
+    data: Uint8Array;
+    contentType: string;
+  }) {
+    const { owner, repo, index, name, data, contentType } = params;
+    return this.uploadAttachment(
+      `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues/${index}/assets`,
+      name,
+      data,
+      contentType,
+    );
+  }
+
+  /** Attach a file to an existing issue/PR comment. */
+  uploadCommentAttachment(params: {
+    owner: string;
+    repo: string;
+    commentId: number;
+    name: string;
+    data: Uint8Array;
+    contentType: string;
+  }) {
+    const { owner, repo, commentId, name, data, contentType } = params;
+    return this.uploadAttachment(
+      `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues/comments/${commentId}/assets`,
+      name,
+      data,
+      contentType,
     );
   }
 }
@@ -154,5 +264,15 @@ export interface IssueComment {
   html_url: string;
   body: string;
   user: { login: string };
+  created_at: string;
+}
+
+export interface Attachment {
+  id: number;
+  name: string;
+  size: number;
+  uuid: string;
+  browser_download_url: string;
+  download_count: number;
   created_at: string;
 }
