@@ -2,7 +2,7 @@
   "name": "forgejo-mcp",
   "displayName": "Forgejo MCP",
   "version": "0.1.0",
-  "description": "Model Context Protocol server for Forgejo (and Gitea): create PRs, comment with media uploads, fetch metadata, list comments, and get diffs.",
+  "description": "Model Context Protocol server for Forgejo (and Gitea): create/update PRs, comment with media uploads, fetch metadata, list comments, and get diffs.",
   "author": {
     "name": "sysref-app",
     "email": "ys.pan@vilor.com"

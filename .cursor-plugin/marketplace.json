@@ -12,7 +12,7 @@
     {
       "name": "forgejo-mcp",
       "source": ".",
-      "description": "Create and inspect Forgejo pull requests, comments (with media uploads), and diffs via MCP"
+      "description": "Create, update, and inspect Forgejo pull requests, comments (with media uploads), and diffs via MCP"
     }
   ]
 }

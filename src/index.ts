@@ -49,6 +49,43 @@ const CreatePullRequestInput = z.object({
   media: MediaListInput,
 });
 
+/** Update an existing PR. Omit a field to leave it unchanged. */
+const UpdatePullRequestInput = z
+  .object({
+    owner: z.string().min(1).describe("Repository owner (user or org)"),
+    repo: z.string().min(1).describe("Repository name"),
+    pr_number: z
+      .number()
+      .int()
+      .positive()
+      .describe("Pull request number (same as the issue index)"),
+    title: z.string().min(1).optional().describe("New title. Omit to leave unchanged."),
+    body: z
+      .string()
+      .optional()
+      .describe(
+        'New description (markdown). Omit to leave unchanged. Pass "" to clear. With media and no body, media is appended to the current description.',
+      ),
+    state: z
+      .enum(["open", "closed"])
+      .optional()
+      .describe("open or closed. Omit to leave unchanged."),
+    media: MediaListInput,
+  })
+  .superRefine((args, ctx) => {
+    if (
+      args.title === undefined &&
+      args.body === undefined &&
+      args.state === undefined &&
+      !args.media?.length
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Provide at least one of title, body, state, or media",
+      });
+    }
+  });
+
 /** Arguments that identify a pull request, shared by the read-only PR tools. */
 const PullRequestRefInput = z.object({
   owner: z.string().min(1).describe("Repository owner (user or org)"),
@@ -172,6 +209,38 @@ async function main() {
         },
       },
       {
+        name: "update_pull_request",
+        description:
+          "Update a pull request's title, description, or state. Omit a field to leave it unchanged; pass an empty body to clear the description. Optional media uploads are attached to the PR and embedded as markdown image links (appended to the new body, or to the current description if body is omitted).",
+        inputSchema: {
+          type: "object",
+          properties: {
+            owner: { type: "string", description: "Repository owner" },
+            repo: { type: "string", description: "Repository name" },
+            pr_number: {
+              type: "integer",
+              description: "Pull request number",
+            },
+            title: {
+              type: "string",
+              description: "New title. Omit to leave unchanged.",
+            },
+            body: {
+              type: "string",
+              description:
+                'New description (markdown). Omit to leave unchanged. Pass "" to clear.',
+            },
+            state: {
+              type: "string",
+              enum: ["open", "closed"],
+              description: "open or closed. Omit to leave unchanged.",
+            },
+            media: mediaInputSchema,
+          },
+          required: ["owner", "repo", "pr_number"],
+        },
+      },
+      {
         name: "get_pull_request",
         description:
           "Get a pull request's metadata: title, description, author, state, head and base branches, and mergeability.",
@@ -290,6 +359,64 @@ async function main() {
                 text: `Posted comment on PR #${pr_number}: ${comment.html_url}`,
               },
               { type: "text", text: JSON.stringify(comment, null, 2) },
+            ],
+          };
+        }
+        case "update_pull_request": {
+          const args = UpdatePullRequestInput.parse(req.params.arguments);
+          const { owner, repo, pr_number, title, state, media } = args;
+          let body = args.body;
+
+          let attachments: Attachment[] | undefined;
+          if (media?.length) {
+            if (body === undefined) {
+              const current = await client.getPullRequest({
+                owner,
+                repo,
+                index: pr_number,
+              });
+              body = current.body ?? "";
+            }
+            const items = await resolveMediaItems(media);
+            attachments = await uploadAll(items, (item) =>
+              client.uploadIssueAttachment({
+                owner,
+                repo,
+                index: pr_number,
+                name: item.name,
+                data: item.data,
+                contentType: item.contentType,
+              }),
+            );
+            body = appendMediaMarkdown(body, attachments);
+          }
+
+          const pr = await client.editPullRequest({
+            owner,
+            repo,
+            index: pr_number,
+            ...(title !== undefined ? { title } : {}),
+            ...(body !== undefined ? { body } : {}),
+            ...(state !== undefined ? { state } : {}),
+          });
+
+          const mediaNote = attachments?.length
+            ? ` with ${attachments.length} media attachment(s)`
+            : "";
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Updated PR #${pr.number}${mediaNote}: ${pr.html_url}`,
+              },
+              {
+                type: "text",
+                text: JSON.stringify(
+                  attachments ? { pr, attachments } : pr,
+                  null,
+                  2,
+                ),
+              },
             ],
           };
         }

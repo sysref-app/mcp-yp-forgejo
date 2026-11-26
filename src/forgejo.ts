@@ -157,13 +157,17 @@ export class ForgejoClient {
     owner: string;
     repo: string;
     index: number;
-    body: string;
+    title?: string;
+    body?: string;
+    state?: "open" | "closed";
+    base?: string;
+    assignees?: string[];
   }) {
-    const { owner, repo, index, body } = params;
+    const { owner, repo, index, ...payload } = params;
     return this.request<PullRequest>(
       "PATCH",
       `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls/${index}`,
-      { body },
+      payload,
     );
   }
 
@@ -254,6 +258,7 @@ export interface PullRequest {
   url: string;
   html_url: string;
   title: string;
+  body: string;
   state: string;
   head: { ref: string; sha: string };
   base: { ref: string; sha: string };
